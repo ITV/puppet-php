@@ -71,57 +71,31 @@
 #   Path to fpm pid file
 #
 class php::fpm::config(
-  $config_file                 = $::php::params::fpm_config_file,
-  $user                        = $::php::params::fpm_user,
-  $group                       = $::php::params::fpm_group,
-  $inifile                     = $::php::params::fpm_inifile,
-  $pid_file                    = $::php::params::fpm_pid_file,
-  $settings                    = {},
-  $pool_base_dir               = $::php::params::fpm_pool_dir,
-  $pool_purge                  = false,
-  $error_log                   = $::php::params::fpm_error_log,
-  $log_level                   = 'notice',
-  $emergency_restart_threshold = '0',
-  $emergency_restart_interval  = '0',
-  $process_control_timeout     = '0',
-  $process_max                 = '0',
-  $rlimit_files                = undef,
-  $systemd_interval            = undef,
-  $log_owner                   = $::php::params::fpm_user,
-  $log_group                   = $::php::params::fpm_group,
-  $log_dir_mode                = '0770',
-  $root_group                  = $::php::params::root_group,
-  $syslog_facility             = 'daemon',
-  $syslog_ident                = 'php-fpm',
-) inherits ::php::params {
+  $config_file                                                          = $php::params::fpm_config_file,
+  String $user                                                          = $php::params::fpm_user,
+  String $group                                                         = $php::params::fpm_group,
+  String $inifile                                                       = $php::params::fpm_inifile,
+  $pid_file                                                             = $php::params::fpm_pid_file,
+  Hash $settings                                                        = {},
+  Stdlib::Absolutepath $pool_base_dir                                   = $php::params::fpm_pool_dir,
+  $pool_purge                                                           = false,
+  String $error_log                                                     = $php::params::fpm_error_log,
+  String $log_level                                                     = 'notice',
+  Integer $emergency_restart_threshold                                  = 0,
+  Variant[Integer, Pattern[/^\d+[smhd]?$/]] $emergency_restart_interval = 0,
+  Variant[Integer, Pattern[/^\d+[smhd]?$/]] $process_control_timeout    = 0,
+  Integer $process_max                                                  = 0,
+  $rlimit_files                                                         = undef,
+  Optional[Variant[Integer,Pattern[/^\d+[smhd]?$/]]] $systemd_interval  = undef,
+  String $log_owner                                                     = $php::params::fpm_user,
+  String $log_group                                                     = $php::params::fpm_group,
+  Pattern[/^\d+$/] $log_dir_mode                                        = '0770',
+  $root_group                                                           = $php::params::root_group,
+  String $syslog_facility                                               = 'daemon',
+  String $syslog_ident                                                  = 'php-fpm',
+) inherits php::params {
 
-  validate_string($user)
-  validate_string($group)
-  validate_string($inifile)
-  validate_hash($settings)
-
-  $number_re = '^\d+$'
-  $interval_re = '^\d+[smhd]?$'
-
-  validate_absolute_path($pool_base_dir)
-  validate_string($error_log)
-  validate_string($log_level)
-  validate_re($emergency_restart_threshold, $number_re)
-  validate_re($emergency_restart_interval, $interval_re)
-  validate_re($process_control_timeout, $interval_re)
-  validate_string($log_owner)
-  validate_string($log_group)
-  validate_re($log_dir_mode, $number_re)
-  validate_string($syslog_facility)
-  validate_string($syslog_ident)
-
-  if $systemd_interval {
-    validate_re($systemd_interval, $interval_re)
-  }
-
-  if $caller_module_name != $module_name {
-    warning('php::fpm::config is private')
-  }
+  assert_private()
 
   # Hack-ish to default to user for group too
   $log_group_final = $log_group ? {
@@ -137,6 +111,12 @@ class php::fpm::config(
     mode    => '0644',
   }
 
+  ensure_resource('file', ['/var/run/php-fpm/', '/var/log/php-fpm/'], {
+    ensure => directory,
+    owner => $user,
+    group => $group,
+  })
+
   file { $pool_base_dir:
     ensure => directory,
     owner  => root,
@@ -151,8 +131,10 @@ class php::fpm::config(
     }
   }
 
-  ::php::config { 'fpm':
-    file   => $inifile,
-    config => $settings,
+  if $inifile != $php::params::config_root_inifile {
+    ::php::config { 'fpm':
+      file   => $inifile,
+      config => $settings,
+    }
   }
 }

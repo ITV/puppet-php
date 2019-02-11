@@ -2,12 +2,12 @@
 #
 class php::repo {
 
-  $msg_no_repo = "No repo available for ${::osfamily}/${::operatingsystem}"
+  $msg_no_repo = "No repo available for ${facts['os']['family']}/${facts['os']['name']}"
 
-  case $::osfamily {
+  case $facts['os']['family'] {
     'Debian': {
       # no contain here because apt does that already
-      case $::operatingsystem {
+      case $facts['os']['name'] {
         'Debian': {
           include ::php::repo::debian
         }
@@ -24,7 +24,7 @@ class php::repo {
       contain ::php::repo::suse
     }
     'RedHat': {
-      contain '::php::repo::redhat'
+      contain 'php::repo::redhat'
     }
     default: {
       fail($msg_no_repo)

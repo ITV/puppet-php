@@ -15,10 +15,10 @@
 #   Defines if the service provider to use
 #
 class php::fpm::service(
-  $service_name = $::php::fpm::service_name,
-  $ensure       = $::php::fpm::service_ensure,
-  $enable       = $::php::fpm::service_enable,
-  $provider     = $::php::fpm::service_provider,
+  $service_name = $php::fpm::service_name,
+  $ensure       = $php::fpm::service_ensure,
+  $enable       = $php::fpm::service_enable,
+  $provider     = $php::fpm::service_provider,
 ) {
 
   if ! defined(Class['php::fpm']) {
@@ -27,7 +27,9 @@ class php::fpm::service(
 
   $reload = "service ${service_name} reload"
 
-  if $::operatingsystem == 'Ubuntu' and $::operatingsystemmajrelease == '12.04' {
+  if ($facts['os']['name'] == 'Ubuntu'
+      and versioncmp($facts['os']['release']['full'], '12') >= 0
+      and versioncmp($facts['os']['release']['full'], '14') < 0) {
     # Precise upstart doesn't support reload signals, so use
     # regular service restart instead
     $restart = undef

@@ -30,14 +30,18 @@
 #   File containing answers for interactive extension setup. Supported
 #   *providers*: pear, pecl.
 #
+# [*install_options*]
+#   Array of String or Hash options to pass to the provider.
+#
 define php::extension::install (
-  String           $ensure            = 'installed',
-  Optional[Php::Provider] $provider   = undef,
-  Optional[String] $source            = undef,
-  String           $package_prefix    = $::php::package_prefix,
+  String           $ensure                          = 'installed',
+  Optional[Php::Provider] $provider                 = undef,
+  Optional[String] $source                          = undef,
+  String           $package_prefix                  = $php::package_prefix,
   Optional[Stdlib::AbsolutePath] $responsefile      = undef,
   Variant[String, Array[String]] $header_packages   = [],
-  Variant[String, Array[String]] $compiler_packages = $::php::params::compiler_packages,
+  Variant[String, Array[String]] $compiler_packages = $php::params::compiler_packages,
+  Php::InstallOptions $install_options              = undef,
 ) {
 
   if ! defined(Class['php']) {
@@ -75,11 +79,12 @@ define php::extension::install (
 
   unless $provider == 'none' {
     package { $real_package:
-      ensure       => $ensure,
-      provider     => $provider,
-      source       => $source,
-      responsefile => $responsefile,
-      require      => $package_require,
+      ensure          => $ensure,
+      provider        => $provider,
+      source          => $source,
+      responsefile    => $responsefile,
+      install_options => $install_options,
+      require         => $package_require,
     }
   }
 }

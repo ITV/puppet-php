@@ -14,6 +14,9 @@
 # [*so_name*]
 #   The DSO name of the package (e.g. opcache for zendopcache)
 #
+# [*ini_prefix*]
+#   An optional filename prefix for the settings file of the extension
+#
 # [*php_api_version*]
 #   This parameter is used to build the full path to the extension
 #   directory for zend_extension in PHP < 5.5 (e.g. 20100525)
@@ -45,6 +48,7 @@ define php::extension::config (
   String                   $ensure          = 'installed',
   Optional[Php::Provider]  $provider        = undef,
   Optional[String]         $so_name         = downcase($name),
+  Optional[String]         $ini_prefix      = undef,
   Optional[String]         $php_api_version = undef,
   Boolean                  $zend            = false,
   Hash                     $settings        = {},
@@ -76,37 +80,49 @@ define php::extension::config (
     String => ensure_prefix($settings, "${settings_prefix}."),
   }
 
-  $final_settings = deep_merge(
-    {"${extension_key}" => "${module_path}${so_name}.so"},
-    $full_settings
-  )
-
-  $config_root_ini = pick_default($::php::config_root_ini, $::php::params::config_root_ini)
-  ::php::config { $title:
-    file   => "${config_root_ini}/${ini_name}.ini",
-    config => $final_settings,
+  if $provider != 'pear' {
+    $final_settings = deep_merge(
+      {"${extension_key}" => "${module_path}${so_name}.so"},
+      $full_settings
+    )
+  } else {
+    $final_settings = $full_settings
   }
 
-  # Ubuntu/Debian systems use the mods-available folder. We need to enable
-  # settings files ourselves with php5enmod command.
-  $ext_tool_enable   = pick_default($::php::ext_tool_enable, $::php::params::ext_tool_enable)
-  $ext_tool_query    = pick_default($::php::ext_tool_query, $::php::params::ext_tool_query)
-  $ext_tool_enabled  = pick_default($::php::ext_tool_enabled, $::php::params::ext_tool_enabled)
-
-  if $::osfamily == 'Debian' and $ext_tool_enabled {
-    $cmd = "${ext_tool_enable} -s ${sapi} ${so_name}"
-
-    $_sapi = $sapi? {
-      'ALL' => 'cli',
-      default => $sapi,
-    }
-    exec { $cmd:
-      onlyif  => "${ext_tool_query} -s ${_sapi} -m ${so_name} | /bin/grep 'No module matches ${so_name}'",
-      require => ::Php::Config[$title],
+  $config_root_ini = pick_default($php::config_root_ini, $php::params::config_root_ini)
+  if $ensure != 'absent' {
+    ::php::config { $title:
+      file   => "${config_root_ini}/${ini_prefix}${ini_name}.ini",
+      config => $final_settings,
     }
 
-    if $::php::fpm {
-      Package[$::php::fpm::package] ~> Exec[$cmd]
+    # Ubuntu/Debian systems use the mods-available folder. We need to enable
+    # settings files ourselves with php5enmod command.
+    $ext_tool_enable   = pick_default($php::ext_tool_enable, $php::params::ext_tool_enable)
+    $ext_tool_query    = pick_default($php::ext_tool_query, $php::params::ext_tool_query)
+    $ext_tool_enabled  = pick_default($php::ext_tool_enabled, $php::params::ext_tool_enabled)
+
+    if $facts['os']['family'] == 'Debian' and $ext_tool_enabled {
+      $cmd = "${ext_tool_enable} -s ${sapi} ${so_name}"
+
+      $_sapi = $sapi? {
+        'ALL' => 'cli',
+        default => $sapi,
+      }
+      if has_key($final_settings, 'extension') and $final_settings[extension] {
+        exec { $cmd:
+          onlyif  => "${ext_tool_query} -s ${_sapi} -m ${so_name} | /bin/grep 'No module matches ${so_name}'",
+          require => ::Php::Config[$title],
+        }
+
+        if $php::fpm {
+          Package[$php::fpm::package] ~> Exec[$cmd]
+        }
+      }
+    }
+  } else {
+    file {"${config_root_ini}/${ini_prefix}${ini_name}.ini":
+      ensure => 'absent',
     }
   }
 }
